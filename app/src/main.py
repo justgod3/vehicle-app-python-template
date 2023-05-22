@@ -63,6 +63,7 @@ class SampleApp(VehicleApp):
         # This method will be called by the SDK when the connection to the
         # Vehicle DataBroker is ready.
         # Here you can subscribe for the Vehicle Signals update (e.g. Vehicle Speed).
+        logger.info("begin on start function")
         await self.Vehicle.Speed.subscribe(self.on_speed_change)
 
     async def on_speed_change(self, data: DataPointReply):
