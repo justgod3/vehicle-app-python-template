@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Robert Bosch GmbH and Microsoft Corporation
+# Copyright (c) 2022-2023 Robert Bosch GmbH and Microsoft Corporation
 #
 # This program and the accompanying materials are made available under the
 # terms of the Apache License, Version 2.0 which is available at
@@ -12,12 +12,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A sample skeleton vehicle app."""
+"""A sample Velocitas vehicle app for adjusting seat position."""
 
 import asyncio
 import json
 import logging
 import signal
+
+from vehicle import Vehicle, vehicle  # type: ignore
 
 from sdv.util.log import (  # type: ignore
     get_opentelemetry_log_factory,
@@ -25,101 +27,147 @@ from sdv.util.log import (  # type: ignore
 )
 from sdv.vdb.reply import DataPointReply
 from sdv.vehicle_app import VehicleApp, subscribe_topic
-from vehicle import Vehicle, vehicle  # type: ignore
 
-# Configure the VehicleApp logger with the necessary log config and level.
 logging.setLogRecordFactory(get_opentelemetry_log_factory())
 logging.basicConfig(format=get_opentelemetry_log_format())
 logging.getLogger().setLevel("DEBUG")
 logger = logging.getLogger(__name__)
 
-GET_SPEED_REQUEST_TOPIC = "sampleapp/getSpeed"
-GET_SPEED_RESPONSE_TOPIC = "sampleapp/getSpeed/response"
-DATABROKER_SUBSCRIPTION_TOPIC = "sampleapp/currentSpeed"
+SET_ATMOSPHERELIGHT_REQUEST_TOPIC = ""
+SET_ATMOSPHERELIGHT_RESPONSE_TOPIC = "sampleapp/setAtmospherelight/response"
+
+# 七种基本色
+seven_color_dic = {
+    "#ff0000": 0,
+    "#00ff00": 3,
+    "#0000ff": 6
+}
 
 
-class SampleApp(VehicleApp):
+class SeatAdjusterApp(VehicleApp):
     """
-    Sample skeleton vehicle app.
+    Sample Velocitas Vehicle App.
 
-    The skeleton subscribes to a getSpeed MQTT topic
-    to listen for incoming requests to get
-    the current vehicle speed and publishes it to
-    a response topic.
+    The SeatAdjusterApp subscribes to a MQTT topic to listen for incoming
+    requests to change the seat position and calls the SeatService to move the seat
+    upon such a request, but only if Vehicle.Speed equals 0.
 
-    It also subcribes to the VehicleDataBroker
-    directly for updates of the
-    Vehicle.Speed signal and publishes this
+    It also subcribes to the VehicleDataBroker for updates of the
+    Vehicle.Cabin.Seat.Row1.Pos1.Position signal and publishes this
     information via another specific MQTT topic
     """
 
     def __init__(self, vehicle_client: Vehicle):
-        # SampleApp inherits from VehicleApp.
         super().__init__()
         self.Vehicle = vehicle_client
 
     async def on_start(self):
         """Run when the vehicle app starts"""
-        # This method will be called by the SDK when the connection to the
-        # Vehicle DataBroker is ready.
-        # Here you can subscribe for the Vehicle Signals update (e.g. Vehicle Speed).
-        logger.info("begin on start function")
-        await self.Vehicle.Speed.subscribe(self.on_speed_change)
-
-    async def on_speed_change(self, data: DataPointReply):
-        """The on_speed_change callback, this will be executed when receiving a new
-        vehicle signal updates."""
-        # Get the current vehicle speed value from the received DatapointReply.
-        # The DatapointReply containes the values of all subscribed DataPoints of
-        # the same callback.
-        vehicle_speed = data.get(self.Vehicle.Speed).value
-
-        # Do anything with the received value.
-        # Example:
-        # - Publishes current speed to MQTT Topic (i.e. DATABROKER_SUBSCRIPTION_TOPIC).
-        await self.publish_mqtt_event(
-            DATABROKER_SUBSCRIPTION_TOPIC,
-            json.dumps({"speed": vehicle_speed}),
+        await self.Vehicle.Cabin.Seat.Row1.Pos1.Position.subscribe(
+            self.on_seat_position_changed
+        )
+        await self.Vehicle.Cabin.Seat.Row1.Pos2.Position.subscribe(
+            self.on_seat_pos2_position_changed
         )
 
-    @subscribe_topic(GET_SPEED_REQUEST_TOPIC)
-    async def on_get_speed_request_received(self, data: str) -> None:
-        """The subscribe_topic annotation is used to subscribe for incoming
-        PubSub events, e.g. MQTT event for GET_SPEED_REQUEST_TOPIC.
-        """
-
-        # Use the logger with the preferred log level (e.g. debug, info, error, etc)
-        logger.debug(
-            "PubSub event for the Topic: %s -> is received with the data: %s",
-            GET_SPEED_REQUEST_TOPIC,
-            data,
-        )
-
-        # Getting current speed from VehicleDataBroker using the DataPoint getter.
-        vehicle_speed = (await self.Vehicle.Speed.get()).value
-
-        # Do anything with the speed value.
-        # Example:
-        # - Publishe the vehicle speed to MQTT topic (i.e. GET_SPEED_RESPONSE_TOPIC).
-        await self.publish_mqtt_event(
-            GET_SPEED_RESPONSE_TOPIC,
+    async def on_seat_position_changed(self, data: DataPointReply):
+        response_topic = "sampleapp/currentPosition"
+        await self.publish_event(
+            response_topic,
             json.dumps(
-                {
-                    "result": {
-                        "status": 0,
-                        "message": f"""Current Speed = {vehicle_speed}""",
-                    },
-                }
+                {"position": data.get(self.Vehicle.Cabin.Seat.Row1.Pos1.Position).value}
             ),
         )
 
+    async def on_seat_pos2_position_changed(self, data: DataPointReply):
+        response_topic = "sampleapp/pos2/currentPosition"
+        await self.publish_event(
+            response_topic,
+            json.dumps(
+                {"position": data.get(self.Vehicle.Cabin.Seat.Row1.Pos2.Position).value}
+            ),
+        )
+
+    @subscribe_topic("sampleapp/setPosition")
+    async def on_set_position_request_received(self, data_str: str) -> None:
+        data = json.loads(data_str)
+        response_topic = "sampleapp/setPosition/response"
+        response_data = {"position": data["position"]}
+        logger.info("this is position: %s", data["position"])
+        position = data["position"]
+
+        await self.Vehicle.Cabin.Seat.Row1.Pos1.Position.set(position)
+        response_data["result"] = {
+            "status": 0,
+            "message": f"Set Seat position to: {position}",
+        }
+
+        await self.publish_event(response_topic, json.dumps(response_data))
+
+    @subscribe_topic(SET_ATMOSPHERELIGHT_REQUEST_TOPIC)
+    async def on_set_atmospherelight_request_received(self, data_str: str) -> None:
+        data = json.loads(data_str)
+        color = data["color"]
+        action = data["action"]
+        status = data["status"]
+        logger.info('atmospherelight color: %', data)
+        logger.info('atmospherelight action: %', action)
+        logger.info('atmospherelight status: %', status)
+        # 逻辑处理
+        if status:
+            color_int = seven_color_dic[color]
+            result_int = color_int + action
+            logger.info(result_int)
+            try:
+                await self.Vehicle.Cabin.Seat.Row1.Pos2.Position.set(result_int)
+                response_data = {
+                    "status": 0,
+                    "message": f"Set color {color}, action {action}",
+                }
+            except ValueError as error:
+                response_data = {
+                    "status": 1,
+                    "message": f"Failed to set color {color}, action {action},\
+                      error: {error}",
+                }
+            except Exception:
+
+                response_data = {
+                    "status": 1,
+                    "message": "Exception on set Seat position",
+                }
+            await self.publish_event(SET_ATMOSPHERELIGHT_RESPONSE_TOPIC,
+                                     json.dumps(response_data))
+        else:
+            result_int = 0
+            try:
+                await self.Vehicle.Cabin.Seat.Row1.Pos2.Position.set(result_int)
+                response_data = {
+                    "status": 0,
+                    "message": f"Set Seat color {color}, action {action}",
+                }
+            except ValueError as error:
+                response_data = {
+                    "status": 1,
+                    "message": f"Failed to set color {color}, action {action}, \
+                    error: {error}",
+                }
+            except Exception:
+
+                response_data = {
+                    "status": 1,
+                    "message": "Exception on set Seat lights",
+                }
+            await self.publish_event(SET_ATMOSPHERELIGHT_RESPONSE_TOPIC,
+                                     json.dumps(response_data))
+
 
 async def main():
+
     """Main function"""
-    logger.info("Starting SampleApp...")
-    # Constructing SampleApp and running it.
-    vehicle_app = SampleApp(vehicle)
-    await vehicle_app.run()
+    logger.info("Starting seat adjuster app...")
+    seat_adjuster_app = SeatAdjusterApp(vehicle)
+    await seat_adjuster_app.run()
 
 
 LOOP = asyncio.get_event_loop()
