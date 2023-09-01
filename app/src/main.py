@@ -24,7 +24,7 @@ from sdv.util.log import (  # type: ignore
     get_opentelemetry_log_format,
 )
 from sdv.vdb.reply import DataPointReply
-from sdv.vehicle_app import VehicleApp, subscribe_topic
+from sdv.vehicle_app import VehicleApp
 from vehicle import Vehicle, vehicle  # type: ignore
 
 # Configure the VehicleApp logger with the necessary log config and level.
@@ -33,9 +33,6 @@ logging.basicConfig(format=get_opentelemetry_log_format())
 logging.getLogger().setLevel("DEBUG")
 logger = logging.getLogger(__name__)
 
-GET_SPEED_REQUEST_TOPIC = "sampleapp/getSpeed"
-GET_SPEED_RESPONSE_TOPIC = "sampleapp/getSpeed/response"
-DATABROKER_SUBSCRIPTION_TOPIC = "sampleapp/currentSpeed"
 
 DATABROKER_SUBSCRIPTION_TEMPERATURE_TOPIC = "sampleapp/currentTemperature"
 
