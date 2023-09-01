@@ -37,20 +37,13 @@ GET_SPEED_REQUEST_TOPIC = "sampleapp/getSpeed"
 GET_SPEED_RESPONSE_TOPIC = "sampleapp/getSpeed/response"
 DATABROKER_SUBSCRIPTION_TOPIC = "sampleapp/currentSpeed"
 
+DATABROKER_SUBSCRIPTION_TEMPERATURE_TOPIC = "sampleapp/currentTemperature"
 
-class SampleApp(VehicleApp):
+
+class SecondBoxApp(VehicleApp):
     """
-    Sample skeleton vehicle app.
-
-    The skeleton subscribes to a getSpeed MQTT topic
-    to listen for incoming requests to get
-    the current vehicle speed and publishes it to
-    a response topic.
-
-    It also subcribes to the VehicleDataBroker
-    directly for updates of the
-    Vehicle.Speed signal and publishes this
-    information via another specific MQTT topic
+    The Second Box Vehicle App
+    - Receive the value and make corresponding logic based on the value
     """
 
     def __init__(self, vehicle_client: Vehicle):
@@ -62,63 +55,45 @@ class SampleApp(VehicleApp):
         """Run when the vehicle app starts"""
         # This method will be called by the SDK when the connection to the
         # Vehicle DataBroker is ready.
-        # Here you can subscribe for the Vehicle Signals update (e.g. Vehicle Speed).
+        # Here I subscribe for the Vehicle Signals update
+        # (e.g. Vehicle Cabin HVAC AmbientAirTemperature).
         logger.info("begin on start function")
-        await self.Vehicle.Speed.subscribe(self.on_speed_change)
+        await self.Vehicle.Cabin.HVAC.AmbientAirTemperature.subscribe(
+            self.on_temperature_change)
 
-    async def on_speed_change(self, data: DataPointReply):
-        """The on_speed_change callback, this will be executed when receiving a new
-        vehicle signal updates."""
-        # Get the current vehicle speed value from the received DatapointReply.
+    async def on_temperature_change(self, data: DataPointReply):
+        """The on_temperature_change callback, this will be executed when receiving 
+        a new vehicle signal updates."""
+        # Get the current temperature value from the received DatapointReply.
         # The DatapointReply containes the values of all subscribed DataPoints of
         # the same callback.
-        vehicle_speed = data.get(self.Vehicle.Speed).value
+        temperature = data.get(self.Vehicle.Cabin.HVAC.AmbientAirTemperature).value
 
-        # Do anything with the received value.
-        # Example:
-        # - Publishes current speed to MQTT Topic (i.e. DATABROKER_SUBSCRIPTION_TOPIC).
-        await self.publish_mqtt_event(
-            DATABROKER_SUBSCRIPTION_TOPIC,
-            json.dumps({"speed": vehicle_speed}),
-        )
+        # business processing
+        if temperature >= 28:
+            await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('OPEN')
+        else:
+            await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('CLOSE')
+        if temperature >= 30:
+            await self.Vehicle.Cabin.Sunroof.Switch.set('OPEN')
+        else:
+            await self.Vehicle.Cabin.Sunroof.Switch.set('CLOSE')
+        if temperature >= 32:
+            await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(35)
+        else:
+            await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(0)
 
-    @subscribe_topic(GET_SPEED_REQUEST_TOPIC)
-    async def on_get_speed_request_received(self, data: str) -> None:
-        """The subscribe_topic annotation is used to subscribe for incoming
-        PubSub events, e.g. MQTT event for GET_SPEED_REQUEST_TOPIC.
-        """
-
-        # Use the logger with the preferred log level (e.g. debug, info, error, etc)
-        logger.debug(
-            "PubSub event for the Topic: %s -> is received with the data: %s",
-            GET_SPEED_REQUEST_TOPIC,
-            data,
-        )
-
-        # Getting current speed from VehicleDataBroker using the DataPoint getter.
-        vehicle_speed = (await self.Vehicle.Speed.get()).value
-
-        # Do anything with the speed value.
-        # Example:
-        # - Publishe the vehicle speed to MQTT topic (i.e. GET_SPEED_RESPONSE_TOPIC).
-        await self.publish_mqtt_event(
-            GET_SPEED_RESPONSE_TOPIC,
-            json.dumps(
-                {
-                    "result": {
-                        "status": 0,
-                        "message": f"""Current Speed = {vehicle_speed}""",
-                    },
-                }
-            ),
+        await self.publish_event(
+            DATABROKER_SUBSCRIPTION_TEMPERATURE_TOPIC,
+            json.dumps({"currentTemperature": temperature})
         )
 
 
 async def main():
     """Main function"""
-    logger.info("Starting SampleApp...")
-    # Constructing SampleApp and running it.
-    vehicle_app = SampleApp(vehicle)
+    logger.info("Starting SecondBoxApp...")
+    # Constructing SecondBoxApp and running it.
+    vehicle_app = SecondBoxApp(vehicle)
     await vehicle_app.run()
 
 
