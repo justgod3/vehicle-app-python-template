@@ -27,6 +27,7 @@ from sdv.vdb.reply import DataPointReply
 from sdv.vehicle_app import VehicleApp, subscribe_topic
 from vehicle import Vehicle, vehicle  # type: ignore
 
+
 # Configure the VehicleApp logger with the necessary log config and level.
 logging.setLogRecordFactory(get_opentelemetry_log_factory())
 logging.basicConfig(format=get_opentelemetry_log_format())
@@ -49,6 +50,7 @@ class SecondBoxApp(VehicleApp):
         # SampleApp inherits from VehicleApp.
         super().__init__()
         self.Vehicle = vehicle_client
+        self.rule = None
 
     async def on_start(self):
         """Run when the vehicle app starts"""
@@ -57,8 +59,6 @@ class SecondBoxApp(VehicleApp):
         # Here I subscribe for the Vehicle Signals update
         # (e.g. Vehicle Cabin HVAC AmbientAirTemperature).
         logger.info("begin on start function")
-        await self.Vehicle.Cabin.HVAC.AmbientAirTemperature.subscribe(
-            self.on_temperature_change)
 
     async def on_temperature_change(self, data: DataPointReply):
         """The on_temperature_change callback, this will be executed when receiving 
@@ -67,15 +67,40 @@ class SecondBoxApp(VehicleApp):
         # The DatapointReply containes the values of all subscribed DataPoints of
         # the same callback.
         temperature = data.get(self.Vehicle.Cabin.HVAC.AmbientAirTemperature).value
-
-        logger.info("temperature value is, %s" % temperature)
-        response_data = {
-            "status": 1,
-            "messages": f"current temperature is {temperature}",
-        }
-        json_response_data = json.dumps(response_data)
-        await self.publish_event(DATABROKER_SUBSCRIPTION_TEMPERATURE_TOPIC,
-                                 json_response_data)
+        logger.info("current temperature value is, %s" % temperature)
+        window_value = (await
+                        self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.get()).value
+        logger.info("window value is %s" % window_value)
+        roof_value = (await self.Vehicle.Cabin.Sunroof.Switch.get()).value
+        logger.info("roof value is %s" % roof_value)
+        fanspeed_value = (await
+                          self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.get()
+                          ).value
+        logger.info("fanspeed_valueis %s" % fanspeed_value)
+        if temperature >= 28:
+            if window_value != 'OPEN':
+                logger.info("window switch set open")
+                await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('OPEN')
+        else:
+            if not (window_value == 'CLOSE' or window_value == ''):
+                logger.info("window switch set close")
+                await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('CLOSE')
+        if temperature >= 30:
+            if roof_value != 'OPEN':
+                logger.info("sunroof switch set open")
+                await self.Vehicle.Cabin.Sunroof.Switch.set('OPEN')
+        else:
+            if not (roof_value == 'CLOSE' or roof_value == ''):
+                logger.info("sunroof switch set close")
+                await self.Vehicle.Cabin.Sunroof.Switch.set('CLOSE')
+        if temperature >= 32:
+            if fanspeed_value != 35:
+                logger.info("fanspeed set open")
+                await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(35)
+        else:
+            if fanspeed_value != 0:
+                logger.info("fanspeed set close")
+                await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(0)
 
     async def device_start(self, status_str) -> None:
         # business processing
@@ -93,6 +118,9 @@ class SecondBoxApp(VehicleApp):
                           ).value
         logger.info("fan speed value is %s" % fanspeed_value)
         if status_str == "off":
+            if self.rule is not None:
+                logger.info("rule is not None")
+                await self.rule.unsubscribe()
             if window_value != 'CLOSE' or window_value is not None:
                 await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('CLOSE')
             if roof_value != 'CLOSE' or roof_value is not None:
@@ -101,31 +129,10 @@ class SecondBoxApp(VehicleApp):
                 await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(0)
             # add AtmosphereLight close
         else:
-            if temperature >= 28:
-                if window_value != 'OPEN':
-                    logger.info("window switch set open")
-                    await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('OPEN')
-            else:
-                if window_value != 'CLOSE' or window_value is not None:
-                    logger.info("window switch set close")
-                    await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('CLOSE')
-            if temperature >= 30:
-                if roof_value != 'OPEN':
-                    logger.info("sunroof switch set open")
-                    await self.Vehicle.Cabin.Sunroof.Switch.set('OPEN')
-            else:
-                if roof_value != 'CLOSE' or roof_value is not None:
-                    logger.info("sunroof switch set close")
-                    await self.Vehicle.Cabin.Sunroof.Switch.set('CLOSE')
-            if temperature >= 32:
-                if fanspeed_value != 35:
-                    logger.info("fanspeed set open")
-                    await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(35)
-            else:
-                if fanspeed_value != 0:
-                    logger.info("fanspeed set close")
-                    await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(0)
+            self.rule = (await self.Vehicle.Cabin.HVAC.AmbientAirTemperature.subscribe(
+                self.on_temperature_change))
 
+        
     @subscribe_topic(USER_ONLINE_REQUEST)
     async def user_online_request_received(self, data_str: str) -> None:
         data = json.loads(data_str)
