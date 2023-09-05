@@ -121,16 +121,21 @@ class SecondBoxApp(VehicleApp):
             if self.rule is not None:
                 logger.info("rule is not None")
                 await self.rule.unsubscribe()
-            if window_value != 'CLOSE' or window_value is not None:
+                logger.info("unsubscribe")
+            if not (window_value == 'CLOSE' or window_value == ''):
+                logger.info("close window")
                 await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set('CLOSE')
-            if roof_value != 'CLOSE' or roof_value is not None:
+            if not (roof_value == 'CLOSE' or roof_value == ''):
+                logger.info("close roof")
                 await self.Vehicle.Cabin.Sunroof.Switch.set('OPEN')
             if fanspeed_value != 0:
+                logger.info("close fanspeed")
                 await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(0)
             # add AtmosphereLight close
         else:
             self.rule = (await self.Vehicle.Cabin.HVAC.AmbientAirTemperature.subscribe(
                 self.on_temperature_change))
+            logger.info("subscribe data point")
 
         
     @subscribe_topic(USER_ONLINE_REQUEST)
