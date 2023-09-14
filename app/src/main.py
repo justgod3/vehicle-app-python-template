@@ -50,10 +50,14 @@ SET_DOOR_WINDOW_SWITCH_RESPONSE = "secondbox/ \
 SET_SUNROOF_REQUEST = "secondbox/setSunroof/request"
 SET_SUNFOOF_RESPONSE = "secondbox/setSunroof/response"
 
-SET_SEATFAN_REQUEST = "secondbox/setSeatfan/request"
-SET_SEATFAN_RESPONSE = "secondbox/setSeatfan/response"
+SET_SEATFAN_REQUEST = "secondbox/setSeatFan/request"
+SET_SEATFAN_RESPONSE = "secondbox/setSeatFan/response"
 SET_ISDOMEON_REQUEST = "secondbox/setDomeonLight/request"
 SET_ISDOMEON_RESPONSE = "secondbox/setDomeonLight/response"
+GET_TEMPERATURE_REQUEST = "secondbox/getTemperature/request"
+GET_TEMPERATURE_RESPONSE = "second/getTemperature/response"
+GET_RADAR_REQUEST = "secondbox/getRadar/request"
+GET_RADAR_RESPONSE = "secondbox/getRadar/response"
 
 
 class SecondBoxApp(VehicleApp):
@@ -161,25 +165,25 @@ class SecondBoxApp(VehicleApp):
         if status is None:
             response_data = {
                 "status": 0,
-                "messages": "no expected args"
+                "message": "no expected args"
             }
             await self.publish_event(USER_ONLINE_RESPONSE, json.dumps(response_data))
         if status == "on":
             LOOP.create_task(self.device_start("on"))
             response_data = {
                 "status": 1,
-                "messages": "device has start"
+                "message": "device has start"
             }
         elif status == "off":
             LOOP.create_task(self.device_start("off"))
             response_data = {
                 "status": 1,
-                "messages": "device has stop"
+                "message": "device has stop"
             }
         else:
             response_data = {
                 "status": 0,
-                "messages": "unexpected args"
+                "message": "unexpected args"
             }
 
         await self.publish_event(USER_ONLINE_RESPONSE, json.dumps(response_data))
@@ -193,13 +197,13 @@ class SecondBoxApp(VehicleApp):
         if direction not in ["up", "down", "left", "right"]:
             response_data = {
                 "status": 0,
-                "messages": "unknow direction"
+                "message": "unknow direction"
             }
         else:
             if angle == 0:
                 response_data = {
                     "status": 1,
-                    "messages": "angle is 0, do nothing"
+                    "message": "angle is 0, do nothing"
                 }
             else:
                 if direction == "left":
@@ -207,7 +211,7 @@ class SecondBoxApp(VehicleApp):
                     if pan_value == 100:
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors is already on the far left"
+                            "message": "mirrors is already on the far left"
                         }
                     else:
                         total_value = pan_value + angle
@@ -217,14 +221,14 @@ class SecondBoxApp(VehicleApp):
                             await self.Vehicle.Body.Mirrors.Left.Pan.set(total_value)
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors has been turn left"
+                            "message": "mirrors has been turn left"
                         }
                 elif direction == "right":
                     pan_value = (await self.Vehicle.Body.Mirrors.Left.Pan.get()).value
                     if pan_value == -100:
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors is already on the far left"
+                            "message": "mirrors is already on the far left"
                         }
                     else:
                         total_value = pan_value - angle
@@ -234,14 +238,14 @@ class SecondBoxApp(VehicleApp):
                             await self.Vehicle.Body.Mirrors.Left.Pan.set(total_value)
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors has been turn right"
+                            "message": "mirrors has been turn right"
                         }
                 elif direction == "up":
                     tilt_value = (await self.Vehicle.Body.Mirrors.Left.Tilt.get()).value
                     if tilt_value == 100:
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors is already on the far up"
+                            "message": "mirrors is already on the far up"
                         }
                     else:
                         total_value = tilt_value + angle
@@ -251,14 +255,14 @@ class SecondBoxApp(VehicleApp):
                             await self.Vehicle.Body.Mirrors.Left.Tilt.set(total_value)
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors has been turn up"
+                            "message": "mirrors has been turn up"
                         }
                 else:
                     tilt_value = (await self.Vehicle.Body.Mirrors.Left.Tilt.get()).value
                     if tilt_value == -100:
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors is already on the far down"
+                            "message": "mirrors is already on the far down"
                         }
                     else:
                         total_value = tilt_value - angle
@@ -268,7 +272,7 @@ class SecondBoxApp(VehicleApp):
                             await self.Vehicle.Body.Mirrors.Left.Tilt.set(total_value)
                         response_data = {
                             "status": 1,
-                            "messages": "mirrors has been turn down"
+                            "message": "mirrors has been turn down"
                         }
         logger.info("mirrors turn %s,angle is %s" % (direction, angle))
         await self.publish_event(
@@ -287,20 +291,20 @@ class SecondBoxApp(VehicleApp):
             if fold == fold_value:
                 response_data = {
                     "status": 1,
-                    "messages": f"current mirrors status is already {fold_status}"
+                    "message": f"current mirrors status is already {fold_status}"
                 }
                 logger.info("fold status current status is already %s" % fold_status)
             else:
                 await self.Vehicle.Body.Mirrors.Left.Fold.set(fold)
                 response_data = {
                     "status": 1,
-                    "messages": f"current mirror change {fold_status}"
+                    "message": f"current mirror change {fold_status}"
                 }
                 logger.info("fold status has change %s" % fold_status)
         else:
             response_data = {
                 "status": 0,
-                "messages": "unpected values"
+                "message": "unpected values"
             }
             logger.info("unpected value,do nothing")
 
@@ -319,21 +323,21 @@ class SecondBoxApp(VehicleApp):
         if fanspeed < 0 or fanspeed > 100:
             response_data = {
                 "status": 0,
-                "messages": "out of range value"
+                "message": "out of range value"
             }
             logger.info("out of range range")
         else:
             if fanspeed == fanspeed_val:
                 response_data = {
                     "status": 1,
-                    "messages": f"""current fanspeed is already {fanspeed}"""
+                    "message": f"""current fanspeed is already {fanspeed}"""
                 }
                 logger.info("current fanspeed is already %s" % fanspeed)
             else:
                 await self.Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed.set(fanspeed)
                 response_data = {
                     "status": 1,
-                    "messages": f"""fanspeed is change {fanspeed}"""
+                    "message": f"""fanspeed is change {fanspeed}"""
                 }
                 logger.info("fanspeed is change %s" % fanspeed)
         await self.publish_event(
@@ -352,14 +356,14 @@ class SecondBoxApp(VehicleApp):
         if door_window_value == door_windo_window:
             response_data = {
                 "status": 1,
-                "messages": f"""door window current status is {door_windo_window},
+                "message": f"""door window current status is {door_windo_window},
                 do nothing"""
             }
         else:
             await self.Vehicle.Cabin.Door.Row1.Left.Window.Switch.set(door_windo_window)
             response_data = {
                 "status": 1,
-                "messages": f"""door window has change {door_windo_window}"""
+                "message": f"""door window has change {door_windo_window}"""
             }
 
         await self.publish_event(
@@ -376,13 +380,13 @@ class SecondBoxApp(VehicleApp):
         if sunroof == sunroof_val:
             response_data = {
                 "status": 1,
-                "messages": """sunroof current status is already {sunroof}"""
+                "message": """sunroof current status is already {sunroof}"""
             }
         else:
             await self.Vehicle.Cabin.Sunroof.Switch.set(sunroof)
             response_data = {
                 "status": 1,
-                "messages": f"""sunroof status has change {sunroof}"""
+                "message": f"""sunroof status has change {sunroof}"""
             }
 
         await self.publish_event(
@@ -394,7 +398,25 @@ class SecondBoxApp(VehicleApp):
     async def set_seatfan_change(self, data_str: str) -> None:
         data = json.loads(data_str)
         logger.info("data is %s" % data)
-        pass
+        seatfan = data["seatfan"]
+        seatfan_val = (await self.Vehicle.Cabin.Seat.Row1.Pos1.IsSeatFan.get()).value
+        seatfan_status = "open" if seatfan is True else "close"
+        if seatfan == seatfan_val:
+            response_data = {
+                "status": 1,
+                "message": f"""current seat fan is {seatfan_status}"""
+            }
+        else:
+            await self.Vehicle.Cabin.Seat.Row1.Pos1.IsSeatFan.set(seatfan)
+            response_data = {
+                "status": 1,
+                "message": "seat fan has change seatfan_status"
+            }
+        await self.publish_event(
+            SET_SEATFAN_RESPONSE,
+            json.dumps(response_data)
+        )
+        
 
     @subscribe_topic(SET_ISDOMEON_REQUEST)
     async def set_domeon_change(self, data_str: str) -> None:
@@ -406,19 +428,59 @@ class SecondBoxApp(VehicleApp):
         if light_status == domeon_value:
             response_data = {
                 "status": 1,
-                "messages": f"""current light status is {light_status_val}"""
+                "message": f"""current light status is {light_status_val}"""
             }
         else:
             await self.Vehicle.Cabin.Lights.IsDomeOn.set(light_status)
             response_data = {
                 "status": 1,
-                "messages": f"""light status has chang {light_status_val}"""
+                "message": f"""light status has chang {light_status_val}"""
             }
         await self.publish_event(
             SET_ISDOMEON_RESPONSE,
             json.dumps(response_data)
         )
 
+    @subscribe_topic(GET_TEMPERATURE_REQUEST)
+    async def get_temperature_request_received(self, data_str: str) -> None:
+        logger.debug(
+            "PubSub event for the Topic: %s -> is received with the data: %s",
+            GET_TEMPERATURE_REQUEST,
+            data_str,
+        )
+        temperature = (await self.Vehicle.Cabin.HVAC.AmbientAirTemperature.get()).value
+        await self.publish_event(
+            GET_TEMPERATURE_RESPONSE,
+            json.dumps(
+                {
+                    "result": {
+                        "status": 0,
+                        "message": f"""Current temperature = {temperature}""",
+                    },
+                }
+            ),
+        )
+        
+    @subscribe_topic(GET_TEMPERATURE_REQUEST)
+    async def get_radar_request_received(self, data_str: str) -> None:
+        logger.debug(
+            "PubSub event for the Topic: %s -> is received with the data: %s",
+            GET_RADAR_REQUEST,
+            data_str,
+        )
+        radar = (await self.Vehicle.Body.Radar.get()).value
+        await self.publish_event(
+            GET_RADAR_RESPONSE,
+            json.dumps(
+                {
+                    "result": {
+                        "status": 0,
+                        "message": f"""Current radar  = {radar}""",
+                    },
+                }
+            ),
+        )
+    
 
 async def main():
     """Main function"""
