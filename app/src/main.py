@@ -370,7 +370,7 @@ class SecondBoxApp(VehicleApp):
             SET_HVAC_RESPONSE,
             json.dumps(response_data)
         )
-    
+
     @subscribe_topic(SET_SUNROOF_REQUEST)
     async def set_mirrors_sunroof_change(self, data_str: str) -> None:
         data = json.loads(data_str)
@@ -416,7 +416,6 @@ class SecondBoxApp(VehicleApp):
             SET_SEATFAN_RESPONSE,
             json.dumps(response_data)
         )
-        
 
     @subscribe_topic(SET_ISDOMEON_REQUEST)
     async def set_domeon_change(self, data_str: str) -> None:
@@ -460,7 +459,7 @@ class SecondBoxApp(VehicleApp):
                 }
             ),
         )
-        
+
     @subscribe_topic(GET_TEMPERATURE_REQUEST)
     async def get_radar_request_received(self, data_str: str) -> None:
         logger.debug(
@@ -480,7 +479,7 @@ class SecondBoxApp(VehicleApp):
                 }
             ),
         )
-    
+
 
 async def main():
     """Main function"""
